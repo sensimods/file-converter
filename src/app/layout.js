@@ -104,9 +104,10 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({ subsets: ['latin'] })
 
+
 export const metadata = {
   title: 'Image Converter',
-  description: 'Convert images between various formats (JPEG, PNG, WebP) easily.',
+  description: 'Convert images between various formats (JPEG, PNG, WebP, AVIF, TIFF, RAW (Uncompressed)) easily.',
   // Add robots meta tag here
   robots: {
     index: false, // Prevents indexing
