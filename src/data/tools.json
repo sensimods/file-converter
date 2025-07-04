@@ -1,0 +1,16 @@
+
+[
+  {
+    "name": "Document Converter",
+    "path": "/tools/document-converter",
+    "icon": "📄",
+    "description": "Convert documents, extract images, and more."
+  },
+  {
+    "name": "Image Converter",
+    "path": "/tools/image-converter",
+    "icon": "🖼️",
+    "description": "Convert images between various formats."
+  }
+ 
+]

@@ -101,6 +101,10 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import Script from 'next/script'
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { ToastContainer } from 'react-toastify'; // Import ToastContainer here
+import 'react-toastify/dist/ReactToastify.css'; // And its CSS
+import Navbar from '@/components/Navbar';
+import Header from '@/components/Header';
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -136,20 +140,35 @@ export default function RootLayout({ children }) {
         */}
 
         {/* Google AdSense Script for Testing - IMPORTANT: Replace with YOUR REAL ID for production */}
-        <Script
+        {/* <Script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7000000000000000" // THIS IS A TEST PUBLISHER ID
           crossOrigin="anonymous"
           strategy="lazyOnload"
-        />
+        /> */}
         {/* The adSense-init script to push empty objects is no longer needed in the head with this setup,
             as it's handled in the ImageConverter component's useEffect.
             If you remove ImageConverter from the page, and still want ads, you'd need it.
         */}
       </head>
       <body className={inter.className}>
+        <Navbar />
+        <Header />
         {children}
         <SpeedInsights />
+
+        <ToastContainer
+          position="bottom-right"
+          autoClose={5000}
+          hideProgressBar={false}
+          newestOnTop={false}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="dark"
+        />
       </body>
     </html>
   );
