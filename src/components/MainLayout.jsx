@@ -222,7 +222,7 @@
 // }
 
 
-
+//WAS WORKING FINE 04-07-25
 // 'use client'; // This component will contain client-side interactivity
 
 // import { useEffect, useRef } from 'react';
@@ -297,6 +297,25 @@
 // }
 
 
+// 'use client'; // This component will contain client-side interactivity
+
+// import { useEffect, useRef } from 'react';
+// import BuyMeACoffee from './BuyMeACoffee';
+// import { ToastContainer } from 'react-toastify';
+// import 'react-toastify/dist/ReactToastify.css';
+// import FingerprintJS from '@fingerprintjs/fingerprintjs'; // Import FingerprintJS
+
+/**
+ * MainLayout Component
+ *
+ * This component provides a consistent layout for all tool pages,
+ * including left and right sections and a central content area,
+ * and a shared footer.
+ *
+ * Props:
+ * - children: React nodes to be rendered in the central content area.
+ * - title: The title for the central content section.
+ */
 'use client'; // This component will contain client-side interactivity
 
 import { useEffect, useRef } from 'react';
@@ -317,26 +336,54 @@ import FingerprintJS from '@fingerprintjs/fingerprintjs'; // Import FingerprintJ
  * - title: The title for the central content section.
  */
 export default function MainLayout({ children, title }) {
-  // Effect to generate and set browser fingerprint
+  // Effect to generate and set browser fingerprint and send to backend
   useEffect(() => {
-    const getFingerprint = async () => {
+    const identifyUser = async () => {
       try {
         const fp = await FingerprintJS.load();
         const result = await fp.get();
-        const visitorId = result.visitorId;
+        const fingerprintId = result.visitorId;
+
+        // Get existing anonymous ID from cookie if it exists (from middleware)
+        const anonymousIdCookie = document.cookie.split('; ').find(row => row.startsWith('_anon_id='));
+        const anonymousId = anonymousIdCookie ? anonymousIdCookie.split('=')[1] : null;
 
         // Set the fingerprint as a cookie.
-        // This cookie is accessible by the middleware.
-        // For production, ensure 'secure' is true if your site is HTTPS.
-        document.cookie = `_fp_id=${visitorId}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax; ${process.env.NODE_ENV === 'production' ? 'secure' : ''}`;
-        console.log('Browser fingerprint set:', visitorId);
+        document.cookie = `_fp_id=${fingerprintId}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax; ${process.env.NODE_ENV === 'production' ? 'secure' : ''}`;
+        console.log('Browser fingerprint set:', fingerprintId);
+
+        // Send fingerprint and anonymous ID to backend for reconciliation
+        const response = await fetch('/api/identify-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ fingerprintId, anonymousId }),
+        });
+
+        if (!response.ok) {
+          console.error('Failed to identify user on backend:', response.statusText);
+        } else {
+          const data = await response.json();
+          console.log('User identification successful:', data);
+          // Dispatch event to update tokens in Navbar/Header immediately after identification
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('tokensUpdated', {
+              detail: {
+                tokensUsed: data.tokensUsed,
+                maxTokens: data.maxTokens,
+                isSubscriber: data.isSubscriber,
+              }
+            }));
+          }
+        }
       } catch (error) {
-        console.error('Error generating browser fingerprint:', error);
+        console.error('Error during user identification process:', error);
       }
     };
 
     if (typeof window !== 'undefined') {
-      getFingerprint();
+      identifyUser();
     }
   }, []); // Run once on mount
 
@@ -377,13 +424,12 @@ export default function MainLayout({ children, title }) {
       </div>
 
       {/* Footer Section */}
-      <footer className="bg-gray-800 shadow-inner py-4 px-6 text-center text-gray-400 text-sm w-full max-w-screen-xl mt-8 rounded-lg">
-       <BuyMeACoffee />
-       <p>&copy; {new Date().getFullYear()} Morpho. All rights reserved.</p>
+      <footer className="bg-gray-800 shadow-inner py-4 px-6 text-center text-gray-400 text-sm w-full max-w-screen-xl mt-8 rounded-lg flex flex-col sm:flex-row justify-between items-center">
+        <p>&copy; {new Date().getFullYear()} Morpho. All rights reserved.</p>
+        <BuyMeACoffee />
+      </footer>
 
-     </footer>
-
-
+      
     </div>
   );
 }

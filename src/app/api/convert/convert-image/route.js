@@ -744,13 +744,327 @@
 
 
 
-
+// WAS WORKING FINE 04-07-25
 // document-pro/src/app/api/convert/convert-image/route.js
+// import sharp from 'sharp';
+// import { NextResponse } from 'next/server';
+// import dbConnect from '../../../../lib/mongodb';
+// import getUserTokenModel from '../../../../models/UserToken';
+// import ConversionRequest from '../../../../models/ConversionRequest';
+
+// export const runtime = 'nodejs';
+
+// export const config = {
+//   api: {
+//     bodyParser: {
+//       sizeLimit: '100mb',
+//     },
+//   },
+// };
+
+// export async function POST(req) {
+//   await dbConnect();
+//   const UserToken = getUserTokenModel();
+
+//   const startTime = Date.now();
+//   let requestRecord = null;
+//   let userToken = null;
+
+//   try {
+//     const userId = req.headers.get('X-User-ID');
+
+//     if (!userId) {
+//       return NextResponse.json({ error: 'User ID not found. Token check cannot proceed.' }, { status: 500 });
+//     }
+
+//     userToken = await UserToken.findOne({ userId });
+
+//     if (!userToken) {
+//       userToken = await UserToken.create({
+//         userId: userId,
+//         lastResetDate: new Date(),
+//         tokensUsedToday: 0,
+//         maxTokensPerDay: 20,
+//         isSubscriber: false,
+//       });
+//     }
+
+//     const now = new Date();
+//     const todayMidnightUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+
+//     if (userToken.lastResetDate.getTime() < todayMidnightUtc.getTime()) {
+//       userToken.tokensUsedToday = 0;
+//       userToken.lastResetDate = todayMidnightUtc;
+//       await userToken.save();
+//     }
+
+//     const formData = await req.formData();
+//     const files = formData.getAll('images');
+//     const outputFormat = formData.get('format');
+//     const maxFileSize = formData.get('maxFileSize');
+
+//     // Calculate tokens needed BEFORE processing to check against limit
+//     const tokensNeeded = files.length; // Each image costs one token
+
+//     // --- Pre-flight Token Check ---
+//     if (!userToken.isSubscriber && (userToken.tokensUsedToday + tokensNeeded) > userToken.maxTokensPerDay) {
+//       await ConversionRequest.create({
+//         type: 'image-conversion',
+//         userId: userId,
+//         fileDetails: {
+//           fileName: 'N/A',
+//           fileSizeKB: 0,
+//           fileMimeType: 'N/A'
+//         },
+//         requestDetails: {
+//           outputFormat: outputFormat || 'N/A',
+//           isBatch: true,
+//           numberOfFiles: files.length
+//         },
+//         status: 'failed',
+//         errorMessage: `Insufficient tokens for batch conversion. Needed ${tokensNeeded}, have ${userToken.maxTokensPerDay - userToken.tokensUsedToday}.`,
+//         durationMs: Date.now() - startTime
+//       });
+//       return NextResponse.json({ error: `Daily token limit exceeded for this batch. You need ${tokensNeeded} tokens but only have ${userToken.maxTokensPerDay - userToken.tokensUsedToday} remaining. Please try again tomorrow or subscribe for unlimited access.` }, { status: 429 });
+//     }
+//     // --- End Pre-flight Token Check ---
+
+
+//     let fileDetailsArray = [];
+
+//     if (!files || files.length === 0) {
+//       requestRecord = await ConversionRequest.create({
+//         type: 'image-conversion',
+//         userId: userId,
+//         fileDetails: {
+//           fileName: 'N/A',
+//           fileSizeKB: 0,
+//           fileMimeType: 'N/A'
+//         },
+//         requestDetails: {
+//           outputFormat: outputFormat || 'N/A',
+//           isBatch: true,
+//           numberOfFiles: 0
+//         },
+//         status: 'failed',
+//         errorMessage: 'No image files provided for conversion.',
+//         durationMs: Date.now() - startTime
+//       });
+//       return NextResponse.json({ error: 'No image files provided.' }, { status: 400 });
+//     }
+
+//     const maxFileSizeBytes = maxFileSize ? parseInt(maxFileSize, 10) : null;
+//     for (const file of files) {
+//       if (maxFileSizeBytes && file.size > maxFileSizeBytes) {
+//         requestRecord = await ConversionRequest.create({
+//           type: 'image-conversion',
+//           userId: userId,
+//           fileDetails: {
+//             fileName: file.name,
+//             fileSizeKB: file.size / 1024,
+//             fileMimeType: file.type
+//           },
+//           requestDetails: {
+//             outputFormat: outputFormat,
+//             isBatch: true,
+//             numberOfFiles: files.length
+//           },
+//           status: 'failed',
+//           errorMessage: `File "${file.name}" exceeds limit of ${maxFileSizeBytes / (1024 * 1024)}MB.`,
+//           durationMs: Date.now() - startTime
+//         });
+//         return NextResponse.json({ error: `One or more files exceeded the size limit.` }, { status: 413 });
+//       }
+//       fileDetailsArray.push({
+//         fileName: file.name,
+//         fileSizeKB: file.size / 1024,
+//         fileMimeType: file.type
+//       });
+//     }
+
+//     if (!outputFormat) {
+//       requestRecord = await ConversionRequest.create({
+//         type: 'image-conversion',
+//         userId: userId,
+//         fileDetails: {
+//           fileName: fileDetailsArray.map(f => f.fileName).join(', '),
+//           fileSizeKB: fileDetailsArray.reduce((sum, f) => sum + f.fileSizeKB, 0),
+//           fileMimeType: fileDetailsArray.length > 1 ? 'Multiple/Mixed' : fileDetailsArray[0].fileMimeType
+//         },
+//         requestDetails: {
+//           outputFormat: 'N/A',
+//           isBatch: true,
+//           numberOfFiles: files.length
+//         },
+//         status: 'failed',
+//         errorMessage: 'Output format not specified.',
+//         durationMs: Date.now() - startTime
+//       });
+//       return NextResponse.json({ error: 'Output format not specified.' }, { status: 400 });
+//     }
+
+//     requestRecord = await ConversionRequest.create({
+//       type: 'image-conversion',
+//       userId: userId,
+//       fileDetails: {
+//         fileName: fileDetailsArray.map(fd => fd.fileName).join(', '),
+//         fileSizeKB: fileDetailsArray.reduce((sum, fd) => sum + fd.fileSizeKB, 0),
+//         fileMimeType: fileDetailsArray.length > 1 ? 'Multiple/Mixed' : fileDetailsArray[0].fileMimeType
+//       },
+//       requestDetails: {
+//         outputFormat: outputFormat,
+//         isBatch: true,
+//         numberOfFiles: files.length
+//       },
+//       status: 'pending'
+//     });
+
+//     const convertedResults = [];
+//     const supportedFormats = ['jpeg', 'png', 'webp', 'avif', 'tiff', 'raw'];
+
+//     if (!supportedFormats.includes(outputFormat)) {
+//       if (requestRecord) {
+//         requestRecord.status = 'failed';
+//         requestRecord.errorMessage = `Unsupported output format: ${outputFormat}`;
+//         requestRecord.durationMs = Date.now() - startTime;
+//         await requestRecord.save();
+//       }
+//       return NextResponse.json({ error: `Unsupported output format: ${outputFormat}` }, { status: 400 });
+//     }
+
+//     for (const file of files) {
+//       try {
+//         const arrayBuffer = await file.arrayBuffer();
+//         const imageBuffer = Buffer.from(arrayBuffer);
+
+//         let convertedBuffer;
+//         let contentType;
+
+//         let sharpInstance = sharp(imageBuffer);
+
+//         switch (outputFormat) {
+//           case 'jpeg':
+//             convertedBuffer = await sharpInstance.jpeg({ quality: 80 }).toBuffer();
+//             contentType = 'image/jpeg';
+//             break;
+//           case 'png':
+//             convertedBuffer = await sharpInstance.png({ compressionLevel: 9 }).toBuffer();
+//             contentType = 'image/png';
+//             break;
+//           case 'webp':
+//             convertedBuffer = await sharpInstance.webp({ quality: 80 }).toBuffer();
+//             contentType = 'image/webp';
+//             break;
+//           case 'avif':
+//             convertedBuffer = await sharpInstance.avif({ quality: 70 }).toBuffer();
+//             contentType = 'image/avif';
+//             break;
+//           case 'tiff':
+//             convertedBuffer = await sharpInstance.tiff().toBuffer();
+//             contentType = 'image/tiff';
+//             break;
+//           case 'raw':
+//             convertedBuffer = await sharpInstance.raw().toBuffer();
+//             contentType = 'application/octet-stream';
+//             break;
+//           default:
+//             throw new Error('Unsupported output format for conversion.');
+//         }
+
+//         convertedResults.push({
+//           fileName: file.name.split('.')[0],
+//           outputFormat: outputFormat,
+//           data: convertedBuffer.toString('base64'),
+//           mimeType: contentType,
+//           success: true
+//         });
+
+//       } catch (conversionError) {
+//         console.error(`Sharp conversion error for ${file.name}:`, conversionError);
+//         convertedResults.push({
+//           fileName: file.name.split('.')[0],
+//           outputFormat: outputFormat,
+//           data: null,
+//           mimeType: null,
+//           success: false,
+//           error: `Conversion failed: ${conversionError.message}`
+//         });
+//       }
+//     }
+
+//     const successfulConversionsCount = convertedResults.filter(res => res.success).length;
+//     const allSuccessful = successfulConversionsCount === files.length; // Check if all files in the batch were successful
+
+//     if (requestRecord) {
+//       requestRecord.status = allSuccessful ? 'success' : 'failed';
+//       requestRecord.errorMessage = allSuccessful ? undefined : 'Some conversions failed.';
+//       requestRecord.durationMs = Date.now() - startTime;
+//       await requestRecord.save();
+//     }
+
+//     // --- Token Consumption Logic: Consume tokens based on the number of successfully converted images ---
+//     if (!userToken.isSubscriber) {
+//       userToken.tokensUsedToday += successfulConversionsCount; // Consume tokens for each successful conversion
+//       await userToken.save();
+//     }
+//     // --- End Token Consumption Logic ---
+
+//     // Return the updated token count in the response
+//     return NextResponse.json({
+//       convertedImages: convertedResults,
+//       tokensUsed: userToken.tokensUsedToday,
+//       maxTokens: userToken.maxTokensPerDay,
+//       isSubscriber: userToken.isSubscriber,
+//     }, { status: 200 });
+
+//   } catch (error) {
+//     console.error('API route error:', error);
+//     let errorMessage = `Server error: ${error.message}`;
+
+//     if (error.message.includes('Body exceeded 1mb limit') || error.message.includes('Body exceeded')) {
+//       errorMessage = `Request body exceeded maximum size limit. Please try a smaller file or fewer files.`;
+//     }
+
+//     if (requestRecord) {
+//       requestRecord.status = 'failed';
+//       requestRecord.errorMessage = errorMessage;
+//       requestRecord.durationMs = Date.now() - startTime;
+//       await requestRecord.save();
+//     } else {
+//       await ConversionRequest.create({
+//         type: 'image-conversion',
+//         userId: req.headers.get('X-User-ID') || 'Unknown',
+//         fileDetails: {
+//           fileName: 'Unknown',
+//           fileSizeKB: 0,
+//           fileMimeType: 'N/A'
+//         },
+//         requestDetails: {
+//           outputFormat: 'Unknown',
+//           isBatch: true,
+//           numberOfFiles: 0
+//         },
+//         status: 'failed',
+//         errorMessage: `Internal server error (no record created): ${errorMessage}`,
+//         durationMs: Date.now() - startTime
+//       });
+//     }
+//     return NextResponse.json({ error: errorMessage }, { status: 500 });
+//   }
+// }
+
+
+// ============================================================================
+// FILE: src/app/api/convert/convert-image/route.js
+// ACTION: Update this existing file
+// NOTE: Fixes TypeError by correctly importing getConversionRequestModel.
+//       Fixes ReferenceError by declaring variables outside try block.
+// ============================================================================
 import sharp from 'sharp';
 import { NextResponse } from 'next/server';
-import dbConnect from '../../../../lib/mongodb';
-import getUserTokenModel from '../../../../models/UserToken';
-import ConversionRequest from '../../../../models/ConversionRequest';
+import dbConnect from '@/lib/mongodb';
+import getUserTokenModel from '@/models/UserToken';
+import getConversionRequestModel from '@/models/ConversionRequest'; // Corrected import
 
 export const runtime = 'nodejs';
 
@@ -765,30 +1079,64 @@ export const config = {
 export async function POST(req) {
   await dbConnect();
   const UserToken = getUserTokenModel();
+  const ConversionRequest = getConversionRequestModel(); // Initialize the model here
 
   const startTime = Date.now();
-  let requestRecord = null;
-  let userToken = null;
+  let requestRecord = null; // Declared outside try block
+  let userToken = null;     // Declared outside try block
+  let fingerprintId = null; // Declared outside try block
+  let anonymousId = null;   // Declared outside try block
 
   try {
-    const userId = req.headers.get('X-User-ID');
+    fingerprintId = req.headers.get('X-Fingerprint-ID'); // Assigned here
+    anonymousId = req.headers.get('X-Anonymous-ID');     // Assigned here
 
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID not found. Token check cannot proceed.' }, { status: 500 });
+    if (!fingerprintId && !anonymousId) {
+      return NextResponse.json({ error: 'No identification headers found. Token check cannot proceed.' }, { status: 500 });
     }
 
-    userToken = await UserToken.findOne({ userId });
+    let fpDoc = null;
+    let anonDoc = null;
 
-    if (!userToken) {
-      userToken = await UserToken.create({
-        userId: userId,
-        lastResetDate: new Date(),
-        tokensUsedToday: 0,
-        maxTokensPerDay: 20,
-        isSubscriber: false,
-      });
+    // Prioritize lookup by fingerprintId
+    if (fingerprintId) {
+      fpDoc = await UserToken.findOne({ fingerprintId });
     }
 
+    // If not found by fingerprint, try by anonymousId
+    if (anonymousId) {
+      anonDoc = await UserToken.findOne({ anonymousId });
+    }
+
+    // --- Reconciliation Logic ---
+    if (fpDoc) {
+      userToken = fpDoc;
+      if (anonDoc && anonDoc._id.toString() !== fpDoc._id.toString()) {
+        console.log(`[convert-image] Merging: Deleting old anonymous token ${anonDoc._id} as fingerprint token ${fpDoc._id} exists.`);
+        if (anonDoc.tokensUsedToday > userToken.tokensUsedToday) {
+            userToken.tokensUsedToday = anonDoc.tokensUsedToday;
+            await userToken.save();
+        }
+        await UserToken.deleteOne({ _id: anonDoc._id });
+      }
+      if (anonymousId && userToken.anonymousId !== anonymousId) {
+        userToken.anonymousId = anonymousId;
+        await userToken.save();
+      }
+    } else if (anonDoc) {
+      userToken = anonDoc;
+      if (fingerprintId && !userToken.fingerprintId) {
+        userToken.fingerprintId = fingerprintId;
+        await userToken.save();
+      }
+    } else {
+        // If no userToken is found by either ID, it means the identify-user endpoint
+        // hasn't run or failed. This route should not create a new one.
+        console.error(`[convert-image] No user token found for FP:${fingerprintId}, Anon:${anonymousId}. User token record must be established by /api/identify-user first.`);
+        return NextResponse.json({ error: 'User token data not found. Please refresh the page to establish your session, or try again.' }, { status: 403 });
+    }
+
+    // Ensure tokens are reset for the current UTC day if needed
     const now = new Date();
     const todayMidnightUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
@@ -803,14 +1151,14 @@ export async function POST(req) {
     const outputFormat = formData.get('format');
     const maxFileSize = formData.get('maxFileSize');
 
-    // Calculate tokens needed BEFORE processing to check against limit
-    const tokensNeeded = files.length; // Each image costs one token
+    const tokensNeeded = files.length;
 
     // --- Pre-flight Token Check ---
     if (!userToken.isSubscriber && (userToken.tokensUsedToday + tokensNeeded) > userToken.maxTokensPerDay) {
+      // Create ConversionRequest record for failed attempt due to tokens
       await ConversionRequest.create({
         type: 'image-conversion',
-        userId: userId,
+        userId: fingerprintId || anonymousId || 'unknown', // Use fingerprint or anonymous ID for logging
         fileDetails: {
           fileName: 'N/A',
           fileSizeKB: 0,
@@ -829,13 +1177,12 @@ export async function POST(req) {
     }
     // --- End Pre-flight Token Check ---
 
-
     let fileDetailsArray = [];
 
     if (!files || files.length === 0) {
       requestRecord = await ConversionRequest.create({
         type: 'image-conversion',
-        userId: userId,
+        userId: fingerprintId || anonymousId || 'unknown',
         fileDetails: {
           fileName: 'N/A',
           fileSizeKB: 0,
@@ -858,7 +1205,7 @@ export async function POST(req) {
       if (maxFileSizeBytes && file.size > maxFileSizeBytes) {
         requestRecord = await ConversionRequest.create({
           type: 'image-conversion',
-          userId: userId,
+          userId: fingerprintId || anonymousId || 'unknown',
           fileDetails: {
             fileName: file.name,
             fileSizeKB: file.size / 1024,
@@ -885,7 +1232,7 @@ export async function POST(req) {
     if (!outputFormat) {
       requestRecord = await ConversionRequest.create({
         type: 'image-conversion',
-        userId: userId,
+        userId: fingerprintId || anonymousId || 'unknown',
         fileDetails: {
           fileName: fileDetailsArray.map(f => f.fileName).join(', '),
           fileSizeKB: fileDetailsArray.reduce((sum, f) => sum + f.fileSizeKB, 0),
@@ -903,9 +1250,10 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Output format not specified.' }, { status: 400 });
     }
 
+    // Create ConversionRequest record for pending attempt
     requestRecord = await ConversionRequest.create({
       type: 'image-conversion',
-      userId: userId,
+      userId: fingerprintId || anonymousId || 'unknown',
       fileDetails: {
         fileName: fileDetailsArray.map(fd => fd.fileName).join(', '),
         fileSizeKB: fileDetailsArray.reduce((sum, fd) => sum + fd.fileSizeKB, 0),
@@ -993,7 +1341,7 @@ export async function POST(req) {
     }
 
     const successfulConversionsCount = convertedResults.filter(res => res.success).length;
-    const allSuccessful = successfulConversionsCount === files.length; // Check if all files in the batch were successful
+    const allSuccessful = successfulConversionsCount === files.length;
 
     if (requestRecord) {
       requestRecord.status = allSuccessful ? 'success' : 'failed';
@@ -1004,12 +1352,11 @@ export async function POST(req) {
 
     // --- Token Consumption Logic: Consume tokens based on the number of successfully converted images ---
     if (!userToken.isSubscriber) {
-      userToken.tokensUsedToday += successfulConversionsCount; // Consume tokens for each successful conversion
+      userToken.tokensUsedToday += successfulConversionsCount;
       await userToken.save();
     }
     // --- End Token Consumption Logic ---
 
-    // Return the updated token count in the response
     return NextResponse.json({
       convertedImages: convertedResults,
       tokensUsed: userToken.tokensUsedToday,
@@ -1018,8 +1365,15 @@ export async function POST(req) {
     }, { status: 200 });
 
   } catch (error) {
-    console.error('API route error:', error);
+    console.error('API route error in /api/convert/convert-image:', error);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
     let errorMessage = `Server error: ${error.message}`;
+
+    // Ensure fingerprintId/anonymousId are available for logging in catch block
+    const currentFingerprintId = fingerprintId;
+    const currentAnonymousId = anonymousId;
 
     if (error.message.includes('Body exceeded 1mb limit') || error.message.includes('Body exceeded')) {
       errorMessage = `Request body exceeded maximum size limit. Please try a smaller file or fewer files.`;
@@ -1031,9 +1385,10 @@ export async function POST(req) {
       requestRecord.durationMs = Date.now() - startTime;
       await requestRecord.save();
     } else {
+      // Only create a new record if requestRecord was never successfully assigned
       await ConversionRequest.create({
         type: 'image-conversion',
-        userId: req.headers.get('X-User-ID') || 'Unknown',
+        userId: currentFingerprintId || currentAnonymousId || 'unknown',
         fileDetails: {
           fileName: 'Unknown',
           fileSizeKB: 0,

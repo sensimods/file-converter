@@ -1198,12 +1198,78 @@
 //   );
 // }
 
+// WAS WORKING FINE 04-07-25
+// 'use client';
+
+// import Link from 'next/link';
+// import { useEffect } from 'react';
+// import toolsData from '../data/tools.json'; // Import your tools data
+
+// export default function HomePage() {
+//   // AdSense push for dynamic loading (removed if MainLayout handles all ads)
+//   useEffect(() => {
+//     try {
+//       if (typeof window !== 'undefined' && window.adsbygoogle) {
+//         (window.adsbygoogle = window.adsbygoogle || []).push({});
+//       }
+//     } catch (error) {
+//       console.error('AdSense script not loaded or error encountered:', error);
+//     }
+//   }, []);
+
+//   return (
+//     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
+//       <div className="bg-gray-800 p-8 rounded-lg shadow-lg text-center max-w-4xl w-full"> {/* Increased max-w for cards */}
+//         <h1 className="text-5xl font-bold mb-8 text-purple-400">
+//           Welcome to Tool Hub!
+//         </h1>
+//         <p className="text-lg text-gray-300 mb-10">
+//           Your one-stop shop for various document and image manipulation tools.
+//         </p>
+
+//         {/* Dynamic Tool Cards */}
+//         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+//           {toolsData.map((tool) => (
+//             <Link key={tool.path} href={tool.path} passHref>
+//               <div className="flex items-center bg-gray-700 p-6 rounded-lg shadow-md hover:bg-gray-600 transition duration-300 ease-in-out cursor-pointer h-full">
+//                 <div className="text-5xl mr-4 flex-shrink-0">
+//                   {tool.icon} {/* Tool Icon */}
+//                 </div>
+//                 <div className="text-left flex-grow">
+//                   <h2 className="text-2xl font-semibold text-purple-300 mb-2">
+//                     {tool.name} {/* Tool Title */}
+//                   </h2>
+//                   <p className="text-gray-400 text-sm">
+//                     {tool.description} {/* Tool Description */}
+//                   </p>
+//                 </div>
+//               </div>
+//             </Link>
+//           ))}
+//         </div>
+
+//         {/* Optional AdSense unit for the home page */}
+//         <div className="mt-10 p-2 bg-gray-700 rounded-lg text-center border border-dashed border-gray-500">
+//           <p className="text-gray-300 mb-2 text-sm">Advertisement</p>
+//           <ins className="adsbygoogle"
+//             style={{ display: 'block', width: '100%', minHeight: '200px' }}
+//             data-ad-client="ca-pub-7000000000000000" // TEST PUBLISHER ID
+//             data-ad-slot="4567890123" // TEST SLOT ID for a responsive ad
+//             data-ad-format="auto"
+//             data-full-width-responsive="true"></ins>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
+
 
 'use client';
 
 import Link from 'next/link';
 import { useEffect } from 'react';
 import toolsData from '../data/tools.json'; // Import your tools data
+import MainLayout from '@/components/MainLayout'; // Import MainLayout for consistent structure
 
 export default function HomePage() {
   // AdSense push for dynamic loading (removed if MainLayout handles all ads)
@@ -1218,24 +1284,25 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
-      <div className="bg-gray-800 p-8 rounded-lg shadow-lg text-center max-w-4xl w-full"> {/* Increased max-w for cards */}
+    // Wrap the content in MainLayout for consistent styling and token handling
+    <MainLayout title="Welcome to Tool Hub!">
+      <div className="bg-gray-800 p-8 rounded-lg shadow-lg text-center max-w-4xl w-full mx-auto"> {/* Increased max-w for cards */}
         <h1 className="text-5xl font-bold mb-8 text-purple-400">
-          Welcome to Tool Hub!
+          Your One-Stop Tool Hub!
         </h1>
         <p className="text-lg text-gray-300 mb-10">
-          Your one-stop shop for various document and image manipulation tools.
+          Explore our collection of powerful document and image manipulation tools.
         </p>
 
         {/* Dynamic Tool Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
           {toolsData.map((tool) => (
             <Link key={tool.path} href={tool.path} passHref>
-              <div className="flex items-center bg-gray-700 p-6 rounded-lg shadow-md hover:bg-gray-600 transition duration-300 ease-in-out cursor-pointer h-full">
-                <div className="text-5xl mr-4 flex-shrink-0">
+              <div className="flex flex-col items-center justify-center bg-gray-700 p-6 rounded-lg shadow-md hover:bg-gray-600 transition duration-300 ease-in-out cursor-pointer h-full text-center">
+                <div className="text-5xl mb-4 flex-shrink-0">
                   {tool.icon} {/* Tool Icon */}
                 </div>
-                <div className="text-left flex-grow">
+                <div className="text-center flex-grow">
                   <h2 className="text-2xl font-semibold text-purple-300 mb-2">
                     {tool.name} {/* Tool Title */}
                   </h2>
@@ -1259,6 +1326,6 @@ export default function HomePage() {
             data-full-width-responsive="true"></ins>
         </div>
       </div>
-    </div>
+    </MainLayout>
   );
 }

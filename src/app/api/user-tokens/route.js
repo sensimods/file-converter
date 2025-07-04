@@ -1,8 +1,62 @@
+//WAS WORKING FINE 04-07-25
+// import { NextResponse } from 'next/server';
+// import dbConnect from '@/lib/mongodb';
+// import getUserTokenModel from '@/models/UserToken';
+
+// // This API route MUST run in the Node.js runtime for Mongoose compatibility
+// export const runtime = 'nodejs';
+
+// export async function GET(request) {
+//   await dbConnect();
+//   const UserToken = getUserTokenModel();
+
+//   try {
+//     const userId = request.headers.get('X-User-ID');
+
+//     if (!userId) {
+//       return NextResponse.json({ error: 'User ID not found.' }, { status: 400 });
+//     }
+
+//     let userToken = await UserToken.findOne({ userId });
+
+//     if (!userToken) {
+//       // If no token record, create a default one (freemium)
+//       userToken = await UserToken.create({
+//         userId: userId,
+//         lastResetDate: new Date(),
+//         tokensUsedToday: 0,
+//         maxTokensPerDay: 20,
+//         isSubscriber: false,
+//       });
+//     }
+
+//     // Ensure tokens are reset for the current UTC day if needed
+//     const now = new Date();
+//     const todayMidnightUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+
+//     if (userToken.lastResetDate.getTime() < todayMidnightUtc.getTime()) {
+//       userToken.tokensUsedToday = 0;
+//       userToken.lastResetDate = todayMidnightUtc;
+//       await userToken.save();
+//     }
+
+//     return NextResponse.json({
+//       tokensUsed: userToken.tokensUsedToday,
+//       maxTokens: userToken.maxTokensPerDay,
+//       isSubscriber: userToken.isSubscriber,
+//     }, { status: 200 });
+
+//   } catch (error) {
+//     console.error('Error fetching user tokens:', error);
+//     return NextResponse.json({ error: 'Internal server error.' }, { status: 500 });
+//   }
+// }
+
+
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import getUserTokenModel from '@/models/UserToken';
 
-// This API route MUST run in the Node.js runtime for Mongoose compatibility
 export const runtime = 'nodejs';
 
 export async function GET(request) {
@@ -10,23 +64,47 @@ export async function GET(request) {
   const UserToken = getUserTokenModel();
 
   try {
-    const userId = request.headers.get('X-User-ID');
+    const fingerprintId = request.headers.get('X-Fingerprint-ID');
+    const anonymousId = request.headers.get('X-Anonymous-ID');
 
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID not found.' }, { status: 400 });
+    if (!fingerprintId && !anonymousId) {
+      return NextResponse.json({ error: 'No identification headers found.' }, { status: 400 });
     }
 
-    let userToken = await UserToken.findOne({ userId });
+    let userToken;
 
+    // Prioritize lookup by fingerprintId
+    if (fingerprintId) {
+      userToken = await UserToken.findOne({ fingerprintId });
+    }
+
+    // If not found by fingerprint, try by anonymousId
+    if (!userToken && anonymousId) {
+      userToken = await UserToken.findOne({ anonymousId });
+      // If found by anonymousId but fingerprint is now available, update the record
+      if (userToken && fingerprintId && !userToken.fingerprintId) {
+        userToken.fingerprintId = fingerprintId;
+        await userToken.save();
+      }
+    }
+
+    // If still no record, create a new one (should ideally be handled by /api/identify-user POST,
+    // but this provides a fallback for direct GET requests or edge cases)
     if (!userToken) {
-      // If no token record, create a default one (freemium)
       userToken = await UserToken.create({
-        userId: userId,
+        fingerprintId: fingerprintId || null,
+        anonymousId: anonymousId || null,
         lastResetDate: new Date(),
         tokensUsedToday: 0,
         maxTokensPerDay: 20,
         isSubscriber: false,
       });
+    } else {
+      // Reconcile anonymousId if it changed (e.g., after cookie deletion)
+      if (anonymousId && userToken.anonymousId !== anonymousId) {
+        userToken.anonymousId = anonymousId;
+        await userToken.save();
+      }
     }
 
     // Ensure tokens are reset for the current UTC day if needed
