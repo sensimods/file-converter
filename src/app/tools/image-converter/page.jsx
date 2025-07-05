@@ -151,7 +151,9 @@ export default function ImageConverter() {
 
     } catch (err) {
       console.error('Conversion error:', err);
-      let errorMessage = `An unexpected error occurred: ${err.message}`;
+      // let errorMessage = `An unexpected error occurred: ${err.message}`;
+      let errorMessage = err.message
+
       if (err.message.includes('Body exceeded')) {
         errorMessage = `Request body too large. Please try fewer or smaller files.`;
       }
