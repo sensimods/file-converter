@@ -105,6 +105,7 @@ import { ToastContainer } from 'react-toastify'; // Import ToastContainer here
 import 'react-toastify/dist/ReactToastify.css'; // And its CSS
 import Navbar from '@/components/Navbar';
 import Header from '@/components/Header';
+import AuthSessionProvider from '@/components/auth/AuthSessionProvider';
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -152,6 +153,7 @@ export default function RootLayout({ children }) {
         */}
       </head>
       <body className={inter.className}>
+        <AuthSessionProvider>
         <Navbar />
         <Header />
         {children}
@@ -169,6 +171,7 @@ export default function RootLayout({ children }) {
           pauseOnHover
           theme="dark"
         />
+        </AuthSessionProvider>
       </body>
     </html>
   );
