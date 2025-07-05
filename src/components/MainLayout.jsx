@@ -118,76 +118,173 @@
 // }
 
 
+// 'use client'
+
+// import { useEffect } from 'react'
+// import BuyMeACoffee from './BuyMeACoffee'
+
+// import FingerprintJS from '@fingerprintjs/fingerprintjs'
+
+// /**
+//  * MainLayout Component
+//  * Provides consistent layout and handles anonymous fingerprint ID setup and token dispatch.
+//  */
+// export default function MainLayout({ children, title }) {
+//   useEffect(() => {
+//     const identifyUser = async () => {
+//       try {
+//         const fp = await FingerprintJS.load()
+//         const result = await fp.get()
+//         const fingerprintId = result.visitorId
+
+//         // Get existing anonymous ID from cookie (set in middleware)
+//         const anonymousIdCookie = document.cookie
+//           .split('; ')
+//           .find(row => row.startsWith('_anon_id='))
+//         const anonymousId = anonymousIdCookie ? anonymousIdCookie.split('=')[1] : null
+
+//         // Store fingerprint ID in a cookie
+//         document.cookie = `_fp_id=${fingerprintId}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax; ${process.env.NODE_ENV === 'production' ? 'secure' : ''}`
+
+//         // Call backend to reconcile token identity
+//         const response = await fetch('/api/identify-user', {
+//           method: 'POST',
+//           headers: {
+//             'Content-Type': 'application/json'
+//           },
+//           body: JSON.stringify({ fingerprintId, anonymousId })
+//         })
+
+//         if (!response.ok) {
+//           console.error('Failed to identify user on backend:', response.statusText)
+//         } else {
+//           const data = await response.json()
+//           console.log('User identification successful:', data)
+
+//           // ✅ Fix: dispatch correct token structure
+//           if (typeof window !== 'undefined') {
+//             window.dispatchEvent(
+//               new CustomEvent('tokensUpdated', {
+//                 detail: {
+//                   tokensUsed: data.tokensUsed,
+//                   maxTokens: data.maxTokens,
+//                   unlimitedAccessUntil: data.unlimitedAccessUntil ?? null
+//                 }
+//               })
+//             )
+//           }
+//         }
+//       } catch (error) {
+//         console.error('Error during user identification:', error)
+//       }
+//     }
+
+//     if (typeof window !== 'undefined') {
+//       identifyUser()
+//     }
+//   }, [])
+
+//   return (
+//     <div className='min-h-screen bg-gray-900 text-white flex flex-col items-center p-4'>
+//       <div className='flex flex-col md:flex-row justify-center items-start w-full max-w-screen-xl gap-4 md:gap-8 flex-grow'>
+//         {/* Left Sidebar */}
+//         <div className='w-full md:w-1/5 lg:w-1/6 flex-shrink-0 mt-8 md:mt-24'>
+//           <div className='p-2 bg-gray-700 rounded-lg text-center border border-dashed border-gray-500 min-h-[300px] flex items-center justify-center'>
+//             <p className='text-gray-300 text-sm'>Content Placeholder</p>
+//           </div>
+//           <div className='p-2 bg-gray-700 rounded-lg text-center border border-dashed border-gray-500 mt-4 min-h-[250px] flex items-center justify-center'>
+//             <p className='text-gray-300 text-sm'>Content Placeholder</p>
+//           </div>
+//         </div>
+
+//         {/* Main Content */}
+//         <div className='bg-gray-800 p-8 rounded-lg shadow-lg w-full md:w-3/5 lg:w-2/3 text-center flex-grow'>
+//           {title && (
+//             <h1 className='text-4xl font-bold mb-6 text-purple-400'>
+//               {title}
+//             </h1>
+//           )}
+//           {children}
+//         </div>
+
+//         {/* Right Sidebar */}
+//         <div className='w-full md:w-1/5 lg:w-1/6 flex-shrink-0 mt-8 md:mt-24'>
+//           <div className='p-2 bg-gray-700 rounded-lg text-center border border-dashed border-gray-500 min-h-[300px] flex items-center justify-center'>
+//             <p className='text-gray-300 text-sm'>Content Placeholder</p>
+//           </div>
+//           <div className='p-2 bg-gray-700 rounded-lg text-center border border-dashed border-gray-500 mt-4 min-h-[250px] flex items-center justify-center'>
+//             <p className='text-gray-300 text-sm'>Content Placeholder</p>
+//           </div>
+//         </div>
+//       </div>
+
+//       {/* Footer */}
+//       <footer className='bg-gray-800 shadow-inner py-4 px-6 text-center text-gray-400 text-sm w-full max-w-screen-xl mt-8 rounded-lg flex flex-col sm:flex-row justify-between items-center'>
+//         <p>&copy; {new Date().getFullYear()} Morpho. All rights reserved.</p>
+//         <BuyMeACoffee />
+//       </footer>
+
+//       {/* Toast notifications */}
+//       {/* <ToastContainer position='bottom-right' theme='dark' autoClose={3000} /> */}
+//     </div>
+//   )
+// }
+
+
 'use client'
 
 import { useEffect } from 'react'
 import BuyMeACoffee from './BuyMeACoffee'
-
+import { ToastContainer } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
 import FingerprintJS from '@fingerprintjs/fingerprintjs'
 
-/**
- * MainLayout Component
- * Provides consistent layout and handles anonymous fingerprint ID setup and token dispatch.
- */
-export default function MainLayout({ children, title }) {
+export default function MainLayout ({ children, title }) {
+  /* ───────────────── Identify user & push correct quota ───────────────── */
   useEffect(() => {
-    const identifyUser = async () => {
-      try {
-        const fp = await FingerprintJS.load()
-        const result = await fp.get()
-        const fingerprintId = result.visitorId
+    const run = async () => {
+      const fp = await FingerprintJS.load()
+      const { visitorId: fingerprintId } = await fp.get()
 
-        // Get existing anonymous ID from cookie (set in middleware)
-        const anonymousIdCookie = document.cookie
-          .split('; ')
-          .find(row => row.startsWith('_anon_id='))
-        const anonymousId = anonymousIdCookie ? anonymousIdCookie.split('=')[1] : null
+      const anonCookie = document.cookie
+        .split('; ')
+        .find(c => c.startsWith('_anon_id='))
 
-        // Store fingerprint ID in a cookie
-        document.cookie = `_fp_id=${fingerprintId}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax; ${process.env.NODE_ENV === 'production' ? 'secure' : ''}`
+      const anonymousId = anonCookie ? anonCookie.split('=')[1] : null
 
-        // Call backend to reconcile token identity
-        const response = await fetch('/api/identify-user', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ fingerprintId, anonymousId })
-        })
+      // Persist fingerprint for future visits
+      document.cookie = `_fp_id=${fingerprintId}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax; ${
+        process.env.NODE_ENV === 'production' ? 'secure' : ''
+      }`
 
-        if (!response.ok) {
-          console.error('Failed to identify user on backend:', response.statusText)
-        } else {
-          const data = await response.json()
-          console.log('User identification successful:', data)
+      const r = await fetch('/api/identify-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fingerprintId, anonymousId })
+      })
 
-          // ✅ Fix: dispatch correct token structure
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(
-              new CustomEvent('tokensUpdated', {
-                detail: {
-                  tokensUsed: data.tokensUsed,
-                  maxTokens: data.maxTokens,
-                  unlimitedAccessUntil: data.unlimitedAccessUntil ?? null
-                }
-              })
-            )
+      if (!r.ok) return
+      const d = await r.json()
+
+      window.dispatchEvent(
+        new CustomEvent('tokensUpdated', {
+          detail: {
+            tokensUsed: d.tokensUsed,
+            maxTokens: d.maxTokens,
+            unlimitedAccessUntil: d.unlimitedAccessUntil
           }
-        }
-      } catch (error) {
-        console.error('Error during user identification:', error)
-      }
+        })
+      )
     }
 
-    if (typeof window !== 'undefined') {
-      identifyUser()
-    }
+    if (typeof window !== 'undefined') run()
   }, [])
 
+  /* ───────────────── UI exactly as you had it ───────────────── */
   return (
     <div className='min-h-screen bg-gray-900 text-white flex flex-col items-center p-4'>
       <div className='flex flex-col md:flex-row justify-center items-start w-full max-w-screen-xl gap-4 md:gap-8 flex-grow'>
-        {/* Left Sidebar */}
+        {/* Left Column */}
         <div className='w-full md:w-1/5 lg:w-1/6 flex-shrink-0 mt-8 md:mt-24'>
           <div className='p-2 bg-gray-700 rounded-lg text-center border border-dashed border-gray-500 min-h-[300px] flex items-center justify-center'>
             <p className='text-gray-300 text-sm'>Content Placeholder</p>
@@ -197,17 +294,13 @@ export default function MainLayout({ children, title }) {
           </div>
         </div>
 
-        {/* Main Content */}
+        {/* Center Content */}
         <div className='bg-gray-800 p-8 rounded-lg shadow-lg w-full md:w-3/5 lg:w-2/3 text-center flex-grow'>
-          {title && (
-            <h1 className='text-4xl font-bold mb-6 text-purple-400'>
-              {title}
-            </h1>
-          )}
+          {title && <h1 className='text-4xl font-bold mb-6 text-purple-400'>{title}</h1>}
           {children}
         </div>
 
-        {/* Right Sidebar */}
+        {/* Right Column */}
         <div className='w-full md:w-1/5 lg:w-1/6 flex-shrink-0 mt-8 md:mt-24'>
           <div className='p-2 bg-gray-700 rounded-lg text-center border border-dashed border-gray-500 min-h-[300px] flex items-center justify-center'>
             <p className='text-gray-300 text-sm'>Content Placeholder</p>
@@ -224,8 +317,7 @@ export default function MainLayout({ children, title }) {
         <BuyMeACoffee />
       </footer>
 
-      {/* Toast notifications */}
-      {/* <ToastContainer position='bottom-right' theme='dark' autoClose={3000} /> */}
+      <ToastContainer position='bottom-right' theme='dark' autoClose={3000} />
     </div>
   )
 }

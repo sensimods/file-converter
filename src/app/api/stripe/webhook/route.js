@@ -260,6 +260,142 @@
 
 
 
+// import { NextResponse } from 'next/server'
+// import Stripe from 'stripe'
+// import dbConnect from '@/lib/mongodb'
+// import getUserTokenModel from '@/models/UserToken'
+// import { PLAN_CONFIG } from '@/lib/planConfig'
+
+// const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+//   apiVersion: '2024-06-20'
+// })
+
+// // ——— Next.js needs raw body for signature verification ———
+// export const config = { api: { bodyParser: false } }
+// async function getRawBody (req) {
+//   const chunks = []
+//   for await (const chunk of req.body)
+//     chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
+//   return Buffer.concat(chunks)
+// }
+
+// // ————————————————————————————————————————————————
+// export async function POST (req) {
+//   await dbConnect()
+//   const UserToken = getUserTokenModel()
+
+//   const rawBody   = await getRawBody(req)
+//   const signature = req.headers.get('stripe-signature')
+//   const secret    = process.env.STRIPE_WEBHOOK_SECRET
+
+//   let event
+//   try {
+//     event = stripe.webhooks.constructEvent(rawBody, signature, secret)
+//   } catch (err) {
+//     console.error('[Stripe Webhook] Signature check failed:', err.message)
+//     return NextResponse.json({ error: 'Bad signature' }, { status: 400 })
+//   }
+
+//   try {
+//     switch (event.type) {
+//       // ───────────────────────── One-time purchases ─────────────────────────
+//       case 'payment_intent.succeeded': {
+//         const pi      = event.data.object
+//         const userId  = pi.metadata?.userId
+//         const priceId = pi.metadata?.priceId
+//         const plan    = PLAN_CONFIG[priceId]
+
+//         if (!userId || !plan) break
+//         if (plan.type !== 'onetime') break   // ignore subs here
+
+//         const ut = await UserToken.findOne({ userId })
+//         if (!ut) break
+
+//         // calculate / extend unlimited window
+//         const now        = new Date()
+//         const expires    = new Date(now.getTime() + plan.durationHours * 3_600_000)
+//         ut.unlimitedAccessUntil =
+//           ut.unlimitedAccessUntil && ut.unlimitedAccessUntil > now
+//             ? new Date(ut.unlimitedAccessUntil.getTime() +
+//                        plan.durationHours * 3_600_000)
+//             : expires
+
+//         ut.maxTokensPerDay   = Infinity
+//         ut.isSubscriber      = false
+//         ut.subscriptionStatus = null
+//         ut.tokensUsedToday   = 0
+//         await ut.save()
+//         break
+//       }
+
+//       // ───────────────────────── Subscriptions (first setup) ─────────────────
+//       case 'setup_intent.succeeded': {
+//         const si       = event.data.object
+//         const userId   = si.metadata?.userId
+//         const priceId  = si.metadata?.priceId
+//         const plan     = PLAN_CONFIG[priceId]
+//         if (!userId || !plan || plan.type !== 'subscription') break
+
+//         // Create the subscription immediately so we have priceId on hand
+//         const subscription = await stripe.subscriptions.create({
+//           customer:            si.customer,
+//           items:               [{ price: priceId }],
+//           default_payment_method: si.payment_method,
+//           metadata:            { userId }
+//         })
+
+//         await applySubscriptionToUser(userId, subscription)
+//         break
+//       }
+
+//       // ───────────────────────── Renewals / status changes ──────────────────
+//       case 'customer.subscription.updated':
+//       case 'customer.subscription.created': {
+//         await applySubscriptionToUser(
+//           event.data.object.metadata?.userId || event.data.object.customer,
+//           event.data.object
+//         )
+//         break
+//       }
+
+//       case 'customer.subscription.deleted': {
+//         const userId = event.data.object.metadata?.userId || event.data.object.customer
+//         const ut = await UserToken.findOne({ userId })
+//         if (ut) {
+//           ut.isSubscriber       = false
+//           ut.subscriptionStatus = 'canceled'
+//           ut.maxTokensPerDay    = 20        // fallback to free tier
+//           await ut.save()
+//         }
+//         break
+//       }
+//     }
+//   } catch (e) {
+//     console.error('[Stripe Webhook] Handler error:', e)
+//     return NextResponse.json({ error: 'Handler error' }, { status: 500 })
+//   }
+
+//   return NextResponse.json({ received: true }, { status: 200 })
+// }
+
+// // Helper to map Stripe subscription ➜ user quota
+// async function applySubscriptionToUser (userId, subscription) {
+//   const UserToken = getUserTokenModel()
+//   const ut = await UserToken.findOne({ userId })
+//   if (!ut) return
+
+//   const priceId = subscription.items.data[0].price.id
+//   const plan    = PLAN_CONFIG[priceId]
+
+//   ut.isSubscriber        = subscription.status === 'active'
+//   ut.subscriptionStatus  = subscription.status
+//   ut.stripeSubscriptionId = subscription.id
+//   ut.maxTokensPerDay     = plan?.maxTokensPerDay ?? 20
+//   ut.unlimitedAccessUntil = null            // clear any one-time pass
+//   await ut.save()
+// }
+
+
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import dbConnect from '@/lib/mongodb'
@@ -270,7 +406,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2024-06-20'
 })
 
-// ——— Next.js needs raw body for signature verification ———
+// Next.js needs the raw body for Stripe signature verification
 export const config = { api: { bodyParser: false } }
 async function getRawBody (req) {
   const chunks = []
@@ -279,7 +415,9 @@ async function getRawBody (req) {
   return Buffer.concat(chunks)
 }
 
-// ————————————————————————————————————————————————
+export const runtime = 'nodejs'
+
+/* -------------------------------------------------------------------- */
 export async function POST (req) {
   await dbConnect()
   const UserToken = getUserTokenModel()
@@ -292,65 +430,61 @@ export async function POST (req) {
   try {
     event = stripe.webhooks.constructEvent(rawBody, signature, secret)
   } catch (err) {
-    console.error('[Stripe Webhook] Signature check failed:', err.message)
-    return NextResponse.json({ error: 'Bad signature' }, { status: 400 })
+    console.error('[Stripe Webhook] Bad signature:', err.message)
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
   try {
     switch (event.type) {
-      // ───────────────────────── One-time purchases ─────────────────────────
+      /* ───────────── One-time purchases ───────────── */
       case 'payment_intent.succeeded': {
-        const pi      = event.data.object
-        const userId  = pi.metadata?.userId
-        const priceId = pi.metadata?.priceId
-        const plan    = PLAN_CONFIG[priceId]
-
-        if (!userId || !plan) break
-        if (plan.type !== 'onetime') break   // ignore subs here
+        const pi       = event.data.object
+        const userId   = pi.metadata?.userId
+        const priceId  = pi.metadata?.priceId
+        const plan     = PLAN_CONFIG[priceId]
+        if (!userId || !plan || plan.type !== 'onetime') break
 
         const ut = await UserToken.findOne({ userId })
         if (!ut) break
 
-        // calculate / extend unlimited window
-        const now        = new Date()
-        const expires    = new Date(now.getTime() + plan.durationHours * 3_600_000)
+        const now      = new Date()
+        const expires  = new Date(now.getTime() + plan.durationHours * 3_600_000)
         ut.unlimitedAccessUntil =
           ut.unlimitedAccessUntil && ut.unlimitedAccessUntil > now
             ? new Date(ut.unlimitedAccessUntil.getTime() +
                        plan.durationHours * 3_600_000)
             : expires
 
-        ut.maxTokensPerDay   = Infinity
-        ut.isSubscriber      = false
+        ut.maxTokensPerDay    = Infinity
+        ut.tokensUsedToday    = 0
+        ut.isSubscriber       = false
         ut.subscriptionStatus = null
-        ut.tokensUsedToday   = 0
         await ut.save()
         break
       }
 
-      // ───────────────────────── Subscriptions (first setup) ─────────────────
+      /* ───────────── First subscription checkout ───────────── */
       case 'setup_intent.succeeded': {
-        const si       = event.data.object
-        const userId   = si.metadata?.userId
-        const priceId  = si.metadata?.priceId
-        const plan     = PLAN_CONFIG[priceId]
+        const si      = event.data.object
+        const userId  = si.metadata?.userId
+        const priceId = si.metadata?.priceId
+        const plan    = PLAN_CONFIG[priceId]
         if (!userId || !plan || plan.type !== 'subscription') break
 
-        // Create the subscription immediately so we have priceId on hand
         const subscription = await stripe.subscriptions.create({
-          customer:            si.customer,
-          items:               [{ price: priceId }],
+          customer:              si.customer,
+          items:                 [{ price: priceId }],
           default_payment_method: si.payment_method,
-          metadata:            { userId }
+          metadata:              { userId }
         })
 
         await applySubscriptionToUser(userId, subscription)
         break
       }
 
-      // ───────────────────────── Renewals / status changes ──────────────────
-      case 'customer.subscription.updated':
-      case 'customer.subscription.created': {
+      /* ───────────── Renewals / status changes ───────────── */
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
         await applySubscriptionToUser(
           event.data.object.metadata?.userId || event.data.object.customer,
           event.data.object
@@ -364,33 +498,43 @@ export async function POST (req) {
         if (ut) {
           ut.isSubscriber       = false
           ut.subscriptionStatus = 'canceled'
-          ut.maxTokensPerDay    = 20        // fallback to free tier
+          ut.maxTokensPerDay    = 20
           await ut.save()
         }
         break
       }
     }
-  } catch (e) {
-    console.error('[Stripe Webhook] Handler error:', e)
+  } catch (err) {
+    console.error('[Stripe Webhook] Handler error:', err)
     return NextResponse.json({ error: 'Handler error' }, { status: 500 })
   }
 
   return NextResponse.json({ received: true }, { status: 200 })
 }
 
-// Helper to map Stripe subscription ➜ user quota
-async function applySubscriptionToUser (userId, subscription) {
+/* --------------------------------------------------------------------
+   Helper: map a Stripe subscription object → UserToken document
+--------------------------------------------------------------------- */
+async function applySubscriptionToUser (userIdOrCustomerId, subscription) {
   const UserToken = getUserTokenModel()
-  const ut = await UserToken.findOne({ userId })
+  const ut =
+    await UserToken.findOne({ userId: userIdOrCustomerId }) ||
+    await UserToken.findOne({ stripeCustomerId: userIdOrCustomerId })
   if (!ut) return
 
   const priceId = subscription.items.data[0].price.id
   const plan    = PLAN_CONFIG[priceId]
 
+  ut.maxTokensPerDay     = plan?.maxTokensPerDay ?? 20
   ut.isSubscriber        = subscription.status === 'active'
   ut.subscriptionStatus  = subscription.status
   ut.stripeSubscriptionId = subscription.id
-  ut.maxTokensPerDay     = plan?.maxTokensPerDay ?? 20
-  ut.unlimitedAccessUntil = null            // clear any one-time pass
+  ut.unlimitedAccessUntil = null
+
+  /* ⭐ NEW: reset the daily counter when subscription turns active ⭐ */
+  if (subscription.status === 'active') {
+    ut.tokensUsedToday = 0
+  }
+
   await ut.save()
 }
