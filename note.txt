@@ -1,45 +1,17 @@
-Gemini Model: https://gemini.google.com/app/1dbb18786a5ca861
+We have issues.
+Here is a list of the following issues:
 
+1: When trying to convert a docx to pdf the buttons are disabled telling us that we have insuffient tokens even when we actually have enough (as anonymous user and when logged in)
 
-Error converting docx to pdf: Error: Failed to convert to PDF. Server status: 500
-    at handleDocxToPdf (webpack-internal:///(app-pages-browser)/./src/app/page.jsx:1301:23)
+2: Error when trying to register a new user. We get this message in the server console: Registration API error: TypeError: User.findOne is not a function
+    at POST (src\app\api\auth\register\route.jsx:22:36)
+  20 |
+  21 |     // Check if user already exists
+> 22 |     const existingUser = await User.findOne({ email });
+     |                                    ^
+  23 |     if (existingUser) {
+  24 |       return NextResponse.json({ error: 'User with this email already exists.' }, { status: 409 });
+  25 |     }
+ POST /api/auth/register 500 in 565ms. It is suggesting the user already exists, but it doesn't
 
-Error extracting images from docx: AxiosError: Request failed with status code 500
-    at settle (webpack-internal:///(app-pages-browser)/./node_modules/axios/lib/core/settle.js:24:12)
-    at XMLHttpRequest.onloadend (webpack-internal:///(app-pages-browser)/./node_modules/axios/lib/adapters/xhr.js:73:66)
-    at Axios.request (webpack-internal:///(app-pages-browser)/./node_modules/axios/lib/core/Axios.js:57:41)
-    at async handleDocxToPdf (webpack-internal:///(app-pages-browser)/./src/app/tools/document-converter/page.jsx:582:30)
-
-    And console error on the server shows this: Next.js API route /api/convert-docx-to-pdf error: Error: ConversionRequest validation failed: type: `docx-to-pdf-conversion` is not a valid enum value for path `type`.
-    at POST (src\app\api\convert\convert-doc\convert-docx-to-pdf\route.js:240:12)
-  238 |
-  239 |   } catch (error) {
-> 240 |     console.error('Next.js API route /api/convert-docx-to-pdf error:', error);
-      |            ^
-  241 |     let errorMessage = `Internal server error: ${error.message}`;
-  242 |
-  243 |     if (requestRecord) { {
-  errors: [Object],
-  _message: 'ConversionRequest validation failed'
-}
- ⨯ ReferenceError: fingerprintId is not defined
-    at POST (src\app\api\convert\convert-doc\convert-docx-to-pdf\route.js:251:16)
-  249 |       await ConversionRequest.create({
-  250 |         type: 'docx-to-pdf-conversion',
-> 251 |         userId: fingerprintId || anonymousId || 'unknown',
-      |                ^
-  252 |         fileDetails: { fileName: 'Unknown', fileSizeKB: 0, fileMimeType: 'N/A' },
-  253 |         requestDetails: { outputFormat: 'pdf', isBatch: false, numberOfFiles: 1 },
-  254 |         status: 'failed',
- ⨯ ReferenceError: fingerprintId is not defined
-    at POST (src\app\api\convert\convert-doc\convert-docx-to-pdf\route.js:251:16)
-  249 |       await ConversionRequest.create({
-  250 |         type: 'docx-to-pdf-conversion',
-> 251 |         userId: fingerprintId || anonymousId || 'unknown',
-      |                ^
-  252 |         fileDetails: { fileName: 'Unknown', fileSizeKB: 0, fileMimeType: 'N/A' },
-  253 |         requestDetails: { outputFormat: 'pdf', isBatch: false, numberOfFiles: 1 },
-  254 |         status: 'failed',
- POST /api/convert/convert-doc/convert-docx-to-pdf 500 in 427ms
-
-    Before the recent changes, these both worked fine
+ 3:
