@@ -1,15 +1,54 @@
-'use client';
+'use client'
 
-import { useState, useRef, useEffect } from 'react';
-import { toast } from 'react-toastify';
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
-// Removed axios import as fetch is used for Next.js API routes
+import { useState, useRef, useEffect } from 'react'
+import { toast } from 'react-toastify'
+import JSZip from 'jszip'
+import { saveAs } from 'file-saver'
 
-import MainLayout from '@/components/MainLayout'; // Assuming MainLayout is in components
-import ActionButton from '@/components/ActionButton'; // Import the new ActionButton
+import MainLayout from '@/components/MainLayout'
+import ActionButton from '@/components/ActionButton'
+
+
 
 export default function DocumentConverterPage() { // Renamed to reflect its purpose
+
+   // ───────────────────────────────── Tokens ─
+   const [tokensUsed, setTokensUsed] = useState(0)
+   const [maxTokens, setMaxTokens] = useState(0)
+   const [isSubscriber, setIsSubscriber] = useState(false)
+   const [isLoadingTokens, setIsLoadingTokens] = useState(true)
+
+
+     // fetch once on mount
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await fetch('/api/user-tokens')
+        if (r.ok) {
+          const d = await r.json()
+          setTokensUsed(d.tokensUsed)
+          setMaxTokens(d.maxTokens)
+          setIsSubscriber(d.isSubscriber)
+        }
+      } catch (e) {
+        console.error('Failed to load token data', e)
+      } finally {
+        setIsLoadingTokens(false)
+      }
+    }
+
+    load()
+
+    // listen for runtime updates
+    const handler = e => {
+      setTokensUsed(e.detail.tokensUsed)
+      setMaxTokens(e.detail.maxTokens)
+      setIsSubscriber(e.detail.isSubscriber)
+    }
+    window.addEventListener('tokensUpdated', handler)
+    return () => window.removeEventListener('tokensUpdated', handler)
+  }, [])
+
   const [selectedFile, setSelectedFile] = useState(null);
   const [extractedImages, setExtractedImages] = useState([]);
   const [loadingExtract, setLoadingExtract] = useState(false); // Specific loading for extraction
@@ -21,26 +60,27 @@ export default function DocumentConverterPage() { // Renamed to reflect its purp
   const MAX_FILE_SIZE_MB = 20; // Increased limit for documents
   const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
-  const handleFileChange = (event) => {
-    const file = event.target.files?.[0];
-    if (file) {
+    // ───────────────────────────────── File-input handler ─
+    const handleFileChange = e => {
+      const file = e.target.files?.[0]
+      if (!file) return
+  
       if (file.size > MAX_FILE_SIZE_BYTES) {
         toast.error(
-          `File "${file.name}" (${(file.size / (1024 * 1024)).toFixed(2)} MB) exceeds the ${MAX_FILE_SIZE_MB}MB limit.`
-        );
-        setSelectedFile(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ''; // Clear input
-        }
+          `File "${file.name}" (${(file.size / 1024 ** 2).toFixed(
+            2
+          )} MB) exceeds the ${MAX_FILE_SIZE_MB} MB limit.`
+        )
+        setSelectedFile(null)
+        fileInputRef.current && (fileInputRef.current.value = '')
       } else {
-        setSelectedFile(file);
-        setExtractedImages([]);
-        setConvertedPdfUrl(null);
-        setError(null);
-        toast.dismiss();
+        setSelectedFile(file)
+        setExtractedImages([])
+        setConvertedPdfUrl(null)
+        setError(null)
+        toast.dismiss()
       }
     }
-  };
 
   const handleExtractImages = async () => {
     if (!selectedFile) {
@@ -282,11 +322,11 @@ export default function DocumentConverterPage() { // Renamed to reflect its purp
     <MainLayout title="Document & Image Tools">
       <div className="mb-6">
         <input
-          type="file"
-          accept=".docx,.pdf" // Accept DOCX and PDF files
-          onChange={handleFileChange}
           ref={fileInputRef}
-          className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-500 file:text-white hover:file:bg-purple-600 cursor-pointer"
+          type='file'
+          accept='.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.pdf'
+          onChange={handleFileChange}
+          className='block w-full text-sm'
         />
         {selectedFile && (
           <p className="text-sm text-gray-400 mt-2">
@@ -297,20 +337,29 @@ export default function DocumentConverterPage() { // Renamed to reflect its purp
       </div>
 
       <div className="flex flex-col sm:flex-row justify-center gap-4 mb-6">
+        {/* ACTION BUTTONS */}
         <ActionButton
           onClick={handleExtractImages}
           loading={loadingExtract}
-          cost={1} // Cost for image extraction is 1 token per document
-          buttonText="Extract Images"
-          disabled={!selectedFile || (!selectedFile.type.includes('wordprocessingml.document') && !selectedFile.type.includes('application/pdf'))}
+          disabled={!selectedFile}
+          cost={1}                   /* 👈 whatever your real cost is */
+          buttonText='Extract Images'
+          tokensUsed={tokensUsed}
+          maxTokens={maxTokens}
+          isSubscriber={isSubscriber}
+          isLoadingTokens={isLoadingTokens}
         />
 
         <ActionButton
           onClick={handleDocxToPdf}
           loading={loadingConvert}
-          cost={1} // Cost for DOCX to PDF conversion is 1 token
-          buttonText="Convert DOCX to PDF"
-          disabled={!selectedFile || selectedFile.type !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}
+          disabled={!selectedFile}
+          cost={1}                   /* 👈 update if different */
+          buttonText='Convert DOCX → PDF'
+          tokensUsed={tokensUsed}
+          maxTokens={maxTokens}
+          isSubscriber={isSubscriber}
+          isLoadingTokens={isLoadingTokens}
         />
       </div>
 

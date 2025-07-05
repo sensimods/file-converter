@@ -14,4 +14,8 @@ Here is a list of the following issues:
   25 |     }
  POST /api/auth/register 500 in 565ms. It is suggesting the user already exists, but it doesn't
 
- 3:
+ I know there will be other issues as well but until i get past these problems i cannot test the site fully.
+
+ Here is the link to my repo at GitHub where all the code is located: https://github.com/sensimods/file-converter
+
+ Payment method setup initiated. Redirecting...

@@ -1,132 +1,110 @@
-
-import NextAuth from 'next-auth';
-import GoogleProvider from 'next-auth/providers/google';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import dbConnect from '@/lib/mongodb';
-import User from '@/models/User';
-import getUserTokenModel from '@/models/UserToken';
-import bcrypt from 'bcryptjs';
+import NextAuth from 'next-auth'
+import GoogleProvider from 'next-auth/providers/google'
+import CredentialsProvider from 'next-auth/providers/credentials'
+import dbConnect from '@/lib/mongodb'
+import getUserModel from '@/models/User'
+import getUserTokenModel from '@/models/UserToken'
+import bcrypt from 'bcryptjs'
 
 export const authOptions = {
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET
     }),
+
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
         email: { label: 'Email', type: 'text' },
-        password: { label: 'Password', type: 'password' },
+        password: { label: 'Password', type: 'password' }
       },
-      async authorize(credentials) {
-        console.log('[NextAuth Authorize] Attempting to authorize user.');
-        try {
-          await dbConnect();
-          console.log('[NextAuth Authorize] Database connected.');
+      async authorize (credentials) {
+        await dbConnect()
+        const User = getUserModel()
 
-          // --- CRITICAL FIX: Explicitly select the password field ---
-          const user = await User.findOne({ email: credentials.email }).select('+password');
-          // --- END CRITICAL FIX ---
+        // include password explicitly
+        const user = await User.findOne({ email: credentials.email }).select(
+          '+password'
+        )
 
-          console.log(`[NextAuth Authorize] User lookup for email "${credentials.email}":`, user ? 'Found' : 'Not found');
+        if (!user) return null
+        const valid = await bcrypt.compare(credentials.password, user.password)
+        if (!valid) return null
 
-          if (!user) {
-            console.log('[NextAuth Authorize] User not found.');
-            return null; // User not found
-          }
-
-          // Compare provided password with hashed password
-          const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
-          console.log(`[NextAuth Authorize] Password comparison result for "${credentials.email}":`, isPasswordValid);
-
-          if (isPasswordValid) {
-            console.log(`[NextAuth Authorize] User "${credentials.email}" authorized successfully.`);
-            return { id: user._id.toString(), email: user.email };
-          } else {
-            console.log('[NextAuth Authorize] Invalid password.');
-            return null; // Invalid password
-          }
-        } catch (error) {
-          console.error('[NextAuth Authorize] Error during authorization:', error);
-          return null; // Indicate authentication failure
-        }
-      },
-    }),
+        return { id: user._id.toString(), email: user.email }
+      }
+    })
   ],
+
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt ({ token, user, account }) {
       if (user) {
-        token.id = user.id;
-        token.email = user.email;
+        token.id = user.id
+        token.email = user.email
       }
-      if (account?.provider === 'google') {
-        token.provider = 'google';
-      }
-      return token;
+      if (account?.provider === 'google') token.provider = 'google'
+      return token
     },
-    async session({ session, token }) {
-      await dbConnect();
-      const UserToken = getUserTokenModel();
 
-      session.user.id = token.id;
+    async session ({ session, token }) {
+      await dbConnect()
+      const UserToken = getUserTokenModel()
 
-      let userToken = await UserToken.findOne({ userId: session.user.id });
+      session.user.id = token.id
 
+      // ─ Create / fetch matching UserToken doc ─
+      let userToken = await UserToken.findOne({ userId: session.user.id })
       if (!userToken) {
         userToken = await UserToken.create({
           userId: session.user.id,
           lastResetDate: new Date(),
           tokensUsedToday: 0,
           maxTokensPerDay: 20,
-          isSubscriber: false,
-        });
-        console.log(`[NextAuth Session Callback] Created new UserToken for authenticated user: ${session.user.id}`);
+          isSubscriber: false
+        })
       }
 
-      const now = new Date();
-      const todayMidnightUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-
-      if (userToken.lastResetDate.getTime() < todayMidnightUtc.getTime()) {
-        userToken.tokensUsedToday = 0;
-        userToken.lastResetDate = todayMidnightUtc;
-        await userToken.save();
-        console.log(`[NextAuth Session Callback] UserToken for ${session.user.id} reset for new day.`);
+      // ─ Midnight-UTC reset ─
+      const now = new Date()
+      const todayUTC = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+      )
+      if (userToken.lastResetDate < todayUTC) {
+        userToken.tokensUsedToday = 0
+        userToken.lastResetDate = todayUTC
+        await userToken.save()
       }
 
-      if (userToken.unlimitedAccessUntil && new Date() > userToken.unlimitedAccessUntil) {
-        userToken.unlimitedAccessUntil = null;
-        userToken.maxTokensPerDay = 20;
-        userToken.isSubscriber = false;
-        await userToken.save();
-        console.log(`[NextAuth Session Callback] Unlimited access for ${session.user.id} expired. Reverted to free tier.`);
+      // ─ Handle subscriber / 24-hr pass ─
+      if (
+        userToken.isSubscriber ||
+        (userToken.unlimitedAccessUntil &&
+          new Date() <= userToken.unlimitedAccessUntil)
+      ) {
+        session.user.maxTokens = Infinity
+        session.user.isSubscriber = true
+      } else {
+        session.user.maxTokens = userToken.maxTokensPerDay
+        session.user.isSubscriber = false
       }
 
-      session.user.tokensUsed = userToken.tokensUsedToday;
-      session.user.maxTokens = userToken.maxTokensPerDay;
-      session.user.isSubscriber = userToken.isSubscriber;
-      session.user.unlimitedAccessUntil = userToken.unlimitedAccessUntil;
+      session.user.tokensUsed = userToken.tokensUsedToday
+      session.user.unlimitedAccessUntil = userToken.unlimitedAccessUntil
 
-      if (session.user.isSubscriber || (session.user.unlimitedAccessUntil && new Date() <= session.user.unlimitedAccessUntil)) {
-        session.user.maxTokens = Infinity;
-        session.user.isSubscriber = session.user.isSubscriber || true;
-      }
-
-      console.log(`[NextAuth Session Callback] Session populated for ${session.user.email} with tokens: ${session.user.maxTokens - session.user.tokensUsed} / ${session.user.maxTokens}, isSubscriber: ${session.user.isSubscriber}`);
-
-      return session;
-    },
+      return session
+    }
   },
-  pages: {
-    signIn: '/login',
-  },
+
+  pages: { signIn: '/login' },
+
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 30 * 24 * 60 * 60 // 30 days
   },
-  secret: process.env.NEXTAUTH_SECRET,
-};
 
-const handler = NextAuth(authOptions);
+  secret: process.env.NEXTAUTH_SECRET
+}
 
-export { handler as GET, handler as POST };
+const handler = NextAuth(authOptions)
+export { handler as GET, handler as POST }

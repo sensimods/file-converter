@@ -12,17 +12,22 @@ const UserSchema = new mongoose.Schema(
         'Please provide a valid email'
       ]
     },
+
     password: {
       type: String,
       required: [true, 'Please provide a password'],
       minlength: 6,
-      select: false          // never return hashes by default
+      select: false // never return in queries unless you .select('+password')
     }
+
+    // ⤴︎ add more user fields here if you need them
   },
   { timestamps: true }
 )
 
-// hash pw on save
+// ────────────────────────────────────────────
+// Hash pw on save
+// ────────────────────────────────────────────
 UserSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next()
   const salt = await bcrypt.genSalt(10)
@@ -30,13 +35,15 @@ UserSchema.pre('save', async function (next) {
   next()
 })
 
-// instance helper
-UserSchema.methods.matchPassword = function (candidate) {
+// Convenient instance helper (optional)
+UserSchema.methods.matchPassword = async function (candidate) {
   return bcrypt.compare(candidate, this.password)
 }
 
-// ← function wrapper prevents model re-compilation during hot-reload
+/**
+ * getUserModel ­— always returns the compiled model.
+ * Prevents “Cannot overwrite model once compiled” during hot-reload.
+ */
 export default function getUserModel () {
-  if (mongoose.connection.models.User) return mongoose.connection.models.User
-  return mongoose.model('User', UserSchema)
+  return mongoose.models.User || mongoose.model('User', UserSchema)
 }
