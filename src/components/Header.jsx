@@ -133,17 +133,126 @@
 // export default Header;
 
 
+// 'use client'
+
+// import { useEffect, useState } from 'react'
+// import { usePathname } from 'next/navigation'
+// import Link from 'next/link'
+// import { useSession, signOut } from 'next-auth/react'
+// import { RiCoinLine } from 'react-icons/ri'
+
+// const Header = () => {
+//   const pathname = usePathname()
+//   const { data: session, status } = useSession()
+
+//   const [tokenInfo, setTokenInfo] = useState({
+//     used: 0,
+//     max: 20,
+//     unlimitedUntil: null
+//   })
+
+//   // ───────────────────────────────────────── update from session
+//   useEffect(() => {
+//     if (status === 'authenticated' && session?.user) {
+//       setTokenInfo({
+//         used: session.user.tokensUsed ?? 0,
+//         max: session.user.maxTokens ?? 20,
+//         unlimitedUntil: session.user.unlimitedAccessUntil ?? null
+//       })
+//     } else if (status === 'unauthenticated') {
+//       setTokenInfo({ used: 0, max: 20, unlimitedUntil: null })
+//     }
+//   }, [session, status])
+
+//   // ───────────────────────────────────────── listen for live events
+//   useEffect(() => {
+//     const handler = e =>
+//       setTokenInfo({
+//         used: e.detail.tokensUsed,
+//         max: e.detail.maxTokens,
+//         unlimitedUntil: e.detail.unlimitedAccessUntil ?? null
+//       })
+
+//     window.addEventListener('tokensUpdated', handler)
+//     return () => window.removeEventListener('tokensUpdated', handler)
+//   }, [])
+
+//   // ───────────────────────────────────────── logout helper
+//   const handleLogout = async () => {
+//     await signOut({ callbackUrl: '/' })
+//     window.dispatchEvent(
+//       new CustomEvent('tokensUpdated', {
+//         detail: { tokensUsed: 0, maxTokens: 20, unlimitedAccessUntil: null }
+//       })
+//     )
+//   }
+
+//   // ───────────────────────────────────────── label builder
+//   let tokenLabel = 'Loading...'
+//   if (status !== 'loading') {
+//     const unlimited =
+//       tokenInfo.max === Infinity ||
+//       (tokenInfo.unlimitedUntil &&
+//         new Date(tokenInfo.unlimitedUntil) > new Date())
+//     tokenLabel = unlimited
+//       ? 'Unlimited tokens'
+//       : `${tokenInfo.max - tokenInfo.used} tokens left`
+//   }
+
+//   return (
+//     <header className='flex items-center justify-between px-4 py-3 bg-[#0B0B28] text-white'>
+//       <Link href='/' className='text-xl font-bold'>
+//         Morpho
+//       </Link>
+
+//       <div className='flex items-center gap-4'>
+//         <div className='flex items-center gap-1 text-sm'>
+//           <RiCoinLine className='text-yellow-400' />
+//           {tokenLabel}
+//         </div>
+
+//         {status === 'loading'
+//           ? null
+//           : session
+//           ? (
+//             <>
+//               <span className='hidden sm:inline text-xs'>
+//                 Hi, {session.user.email}
+//               </span>
+//               <button onClick={handleLogout} className='underline text-xs'>
+//                 Logout
+//               </button>
+//             </>
+//           )
+//           : (
+//             <>
+//               <Link href='/login' className='underline text-xs'>
+//                 Login
+//               </Link>
+//               <Link href='/register' className='underline text-xs'>
+//                 Register
+//               </Link>
+//             </>
+//           )}
+//       </div>
+//     </header>
+//   )
+// }
+
+// export default Header
+
+
 'use client'
 
 import { useEffect, useState } from 'react'
-import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { RiCoinLine } from 'react-icons/ri'
 
 const Header = () => {
-  const pathname = usePathname()
   const { data: session, status } = useSession()
+  const pathname = usePathname()
 
   const [tokenInfo, setTokenInfo] = useState({
     used: 0,
@@ -151,7 +260,7 @@ const Header = () => {
     unlimitedUntil: null
   })
 
-  // ───────────────────────────────────────── update from session
+  /* ───────────────────────────────── Sync from session */
   useEffect(() => {
     if (status === 'authenticated' && session?.user) {
       setTokenInfo({
@@ -162,43 +271,33 @@ const Header = () => {
     } else if (status === 'unauthenticated') {
       setTokenInfo({ used: 0, max: 20, unlimitedUntil: null })
     }
-  }, [session, status])
+  }, [status, session])
 
-  // ───────────────────────────────────────── listen for live events
+  /* ───────────────────────────────── Live updates */
   useEffect(() => {
-    const handler = e =>
-      setTokenInfo({
-        used: e.detail.tokensUsed,
-        max: e.detail.maxTokens,
-        unlimitedUntil: e.detail.unlimitedAccessUntil ?? null
-      })
-
+    const handler = e => setTokenInfo({
+      used: e.detail.tokensUsed,
+      max: e.detail.maxTokens,
+      unlimitedUntil: e.detail.unlimitedAccessUntil ?? null
+    })
     window.addEventListener('tokensUpdated', handler)
     return () => window.removeEventListener('tokensUpdated', handler)
   }, [])
 
-  // ───────────────────────────────────────── logout helper
-  const handleLogout = async () => {
-    await signOut({ callbackUrl: '/' })
-    window.dispatchEvent(
-      new CustomEvent('tokensUpdated', {
-        detail: { tokensUsed: 0, maxTokens: 20, unlimitedAccessUntil: null }
-      })
-    )
-  }
-
-  // ───────────────────────────────────────── label builder
-  let tokenLabel = 'Loading...'
+  /* ───────────────────────────────── Label */
+  let tokenLabel = 'Loading…'
   if (status !== 'loading') {
     const unlimited =
       tokenInfo.max === Infinity ||
-      (tokenInfo.unlimitedUntil &&
-        new Date(tokenInfo.unlimitedUntil) > new Date())
+      (tokenInfo.unlimitedUntil && new Date(tokenInfo.unlimitedUntil) > new Date())
+
+    const left = tokenInfo.max - tokenInfo.used
     tokenLabel = unlimited
       ? 'Unlimited tokens'
-      : `${tokenInfo.max - tokenInfo.used} tokens left`
+      : `${Math.max(left, 0)} tokens left`   // ← clamp at 0
   }
 
+  /* ───────────────────────────────── UI */
   return (
     <header className='flex items-center justify-between px-4 py-3 bg-[#0B0B28] text-white'>
       <Link href='/' className='text-xl font-bold'>
@@ -211,29 +310,29 @@ const Header = () => {
           {tokenLabel}
         </div>
 
-        {status === 'loading'
-          ? null
-          : session
-          ? (
-            <>
-              <span className='hidden sm:inline text-xs'>
-                Hi, {session.user.email}
-              </span>
-              <button onClick={handleLogout} className='underline text-xs'>
-                Logout
-              </button>
-            </>
-          )
-          : (
-            <>
+        {status === 'loading' ? null : session ? (
+          <>
+            <span className='hidden sm:inline text-xs'>
+              Hi, {session.user.email}
+            </span>
+            <button onClick={() => signOut({ callbackUrl: '/' })} className='underline text-xs'>
+              Logout
+            </button>
+          </>
+        ) : (
+          <>
+            {pathname !== '/login' && (
               <Link href='/login' className='underline text-xs'>
                 Login
               </Link>
+            )}
+            {pathname !== '/register' && (
               <Link href='/register' className='underline text-xs'>
                 Register
               </Link>
-            </>
-          )}
+            )}
+          </>
+        )}
       </div>
     </header>
   )
