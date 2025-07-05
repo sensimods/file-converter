@@ -76,16 +76,24 @@ export async function POST(req) {
       }
     }
 
-    const setupIntent = await stripe.setupIntents.create({
-      customer: stripeCustomerId,
-      payment_method_types: ['card'],
-      usage: 'off_session',
-      metadata: {
-        userId: session.user.id,
-        priceId: priceId,
-        planType: 'monthly-subscription-setup',
-      },
-    });
+    // const setupIntent = await stripe.setupIntents.create({
+    //   customer: stripeCustomerId,
+    //   payment_method_types: ['card'],
+    //   usage: 'off_session',
+    //   metadata: {
+    //     userId: session.user.id,
+    //     priceId: priceId,
+    //     planType: 'monthly-subscription-setup',
+    //   },
+    // });
+
+      const setupIntent = await stripe.setupIntents.create({
+            customer: stripeCustomerId,
+            payment_method_types: ['card'],
+            usage: 'off_session',
+            metadata: { userId: session.user.id, priceId },   // 👈
+           })
+
     console.log(`[create-setup-intent API] SetupIntent created: ${setupIntent.id}`);
 
     return NextResponse.json({ clientSecret: setupIntent.client_secret }, { status: 200 });
