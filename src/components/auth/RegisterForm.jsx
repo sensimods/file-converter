@@ -1,4 +1,3 @@
-// document-pro/src/components/auth/RegisterForm.jsx
 'use client';
 
 import { useState } from 'react';

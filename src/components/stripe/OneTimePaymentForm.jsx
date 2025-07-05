@@ -1,4 +1,3 @@
-// document-pro/src/components/stripe/OneTimePaymentForm.jsx
 'use client';
 
 import { useStripe, useElements, PaymentElement, Elements } from '@stripe/react-stripe-js';

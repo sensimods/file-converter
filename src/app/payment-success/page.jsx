@@ -1,4 +1,3 @@
-// document-pro/src/app/payment-success/page.jsx
 'use client';
 
 import MainLayout from '@/components/MainLayout';

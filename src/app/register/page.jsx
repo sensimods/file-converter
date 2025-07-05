@@ -1,4 +1,3 @@
-// document-pro/src/app/register/page.jsx
 import MainLayout from '@/components/MainLayout';
 import RegisterForm from '@/components/auth/RegisterForm';
 

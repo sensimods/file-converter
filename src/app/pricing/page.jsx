@@ -1,4 +1,3 @@
-// document-pro/src/app/pricing/page.jsx
 'use client';
 
 import MainLayout from '@/components/MainLayout';
